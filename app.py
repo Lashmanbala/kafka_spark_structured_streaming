@@ -1,11 +1,19 @@
 import time
 import random
 import json
+from quixstreams import Application
+
 
 transaction_counter = 1
+
 customer_id = [f"cust_{i}" for i in range(1, 6)]      
 merchant_id = [f"merch_{i}" for i in range(1, 4)]
 product_id = [f"prod_{i}" for i in range(1, 8)] 
+
+app = Application(
+    broker_address='localhost:9092',
+    loglevel='DEBUG',
+)
 
 try:
     while True:
@@ -17,11 +25,12 @@ try:
             'merchant_id' : random.choice(merchant_id)
             }
     
-        print(event)
-    
-        transaction_counter += 1
+        with app.get_producer() as producer:
+            producer.produce(topic='test-topic', value=json.dumps(event))
 
+        transaction_counter += 1
         time.sleep(5)
+        
 except KeyboardInterrupt:
     print('Stopped by User...')
 
