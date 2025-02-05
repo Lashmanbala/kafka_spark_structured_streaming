@@ -46,11 +46,20 @@ eligible_df = json_df.filter((col('amount') > 500) &
 output_df = eligible_df.select(to_json(struct(*eligible_df.columns)).alias("value"))
 
 # writing into kafka topic
-output_df.writeStream \
-    .format("kafka") \
+# output_df.writeStream \
+#     .format("kafka") \
+#     .outputMode("append") \
+#     .option("kafka.bootstrap.servers", "broker:9092") \
+#     .option("topic", "eligible_cutomers_topic") \
+#     .option("checkpointLocation", "./kafka_checkpoints") \
+#     .start() \
+#     .awaitTermination()
+
+# writing as a parquet
+eligible_df.writeStream \
+    .format("parquet") \
     .outputMode("append") \
-    .option("kafka.bootstrap.servers", "broker:9092") \
-    .option("topic", "eligible_cutomers_topic") \
+    .option("path", "./parquet_output") \
     .option("checkpointLocation", "./kafka_checkpoints") \
     .start() \
     .awaitTermination()
