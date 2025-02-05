@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, round
+from pyspark.sql.functions import col, from_json, round, to_json, struct
 from pyspark.sql.types import *
 
 # Initialize SparkSession
@@ -39,8 +39,18 @@ eligible_df = json_df.filter((col('amount') > 500) &
                      .withColumn('cashback', round(col('amount').cast('double') * 0.15, 2)) \
                      .select(col("customer_id"),col("amount"),col("cashback"),col("merchant_id"),col("timestamp"))
 
-eligible_df.writeStream \
-    .format("console") \
+## Create an output 
+# Kafka takes only string. And the clm name should be value
+# converting the df into json string with clm name as 'value'
+
+output_df = eligible_df.select(to_json(struct(*eligible_df.columns)).alias("value"))
+
+# writing into kafka topic
+output_df.writeStream \
+    .format("kafka") \
     .outputMode("append") \
+    .option("kafka.bootstrap.servers", "broker:9092") \
+    .option("topic", "eligible_cutomers_topic") \
+    .option("checkpointLocation", "./kafka_checkpoints") \
     .start() \
     .awaitTermination()
