@@ -2,6 +2,7 @@ import time
 import random
 import json
 from quixstreams import Application
+from datetime import datetime
 import logging
 
 
@@ -21,7 +22,7 @@ def main():
         while True:
             event = {'transaction_id':f'trans_{transaction_counter}',
                     'customer_id' : random.choice(customer_id),
-                    'timestamp' : time.time(),
+                    'timestamp' : datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
                     'product_id' : random.choice(product_id),
                     'amount' : random.randint(100, 1000),
                     'merchant_id' : random.choice(merchant_id)
@@ -35,7 +36,7 @@ def main():
                 logging.info('Produced the record into kafka...sleeping...')
 
             transaction_counter += 1
-            time.sleep(5)
+            time.sleep(30)
             
     except KeyboardInterrupt:
         print('Stopped by User...')

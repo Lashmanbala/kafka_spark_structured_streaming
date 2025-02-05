@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json
+from pyspark.sql.functions import col, from_json, round
 from pyspark.sql.types import *
 
 # Initialize SparkSession
@@ -36,7 +36,7 @@ json_df = value_df.withColumn('value_json', from_json(col('value'), df_schema))\
 
 eligible_df = json_df.filter((col('amount') > 500) & 
                              (col('merchant_id').isin('merch_1', 'merch_3'))) \
-                     .withColumn('cashback', col('amount').cast('double') * 0.15) \
+                     .withColumn('cashback', round(col('amount').cast('double') * 0.15, 2)) \
                      .select(col("customer_id"),col("amount"),col("cashback"),col("merchant_id"),col("timestamp"))
 
 eligible_df.writeStream \
