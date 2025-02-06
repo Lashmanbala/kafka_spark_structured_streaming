@@ -56,10 +56,32 @@ output_df = eligible_df.select(to_json(struct(*eligible_df.columns)).alias("valu
 #     .awaitTermination()
 
 # writing as a parquet
-eligible_df.writeStream \
-    .format("parquet") \
+# eligible_df.writeStream \
+#     .format("parquet") \
+#     .outputMode("append") \
+#     .option("path", "./parquet_output") \
+#     .option("checkpointLocation", "./kafka_checkpoints") \
+#     .start() \
+#     .awaitTermination()
+
+
+# Define a function to write each batch to PostgreSQL
+def write_to_postgres(batch_df, batch_id):
+    batch_df.write \
+        .format("jdbc") \
+        .option("url", "jdbc:postgresql://postgres_db:5432/cashback_db") \
+        .option("dbtable", "eligible_customers") \
+        .option("user", "postgres") \
+        .option("password",  "postgres123") \
+        .option("driver", "org.postgresql.Driver") \
+        .mode("append") \
+        .save()
+
+# Apply foreachBatch for micro-batch writes
+query = eligible_df.writeStream \
     .outputMode("append") \
-    .option("path", "./parquet_output") \
-    .option("checkpointLocation", "./kafka_checkpoints") \
-    .start() \
-    .awaitTermination()
+    .foreachBatch(write_to_postgres) \
+    .option("checkpointLocation", "/path/to/checkpoints") \
+    .start()
+
+query.awaitTermination()

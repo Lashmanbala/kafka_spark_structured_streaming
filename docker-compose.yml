@@ -3,15 +3,15 @@ version: '3.8'
 services:
   kafka:
     image: bitnami/kafka:latest
-    container_name: kafka
+    container_name: broker
     environment:
       - KAFKA_CFG_NODE_ID=1
-      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller # Both the broker and controller in the same instance
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://ec2-3-84-190-53.compute-1.amazonaws.com:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://ec2-44-201-228-247.compute-1.amazonaws.com:9092
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@ec2-3-84-190-53.compute-1.amazonaws.com:9093
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@ec2-44-201-228-247.compute-1.amazonaws.com:9093
       - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
       - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
@@ -21,13 +21,36 @@ services:
     ports:
       - "9092:9092"
       - "9093:9093"
-    volumes:
-      - kafka_data:/bitnami/kafka
     networks:
-      - kafka-network
+      - network_1
+
+  spark:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: spark:latest
+    container_name: spark
+    ports:
+      - '4040:4040'
+    networks:
+      - network_1
+    volumes:
+      - /home/ubuntu/kafka_spark_streaming:/opt/spark/work-dir
+  postgres_db:
+    image: postgres:latest
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      PGPASSWORD: postgres123
+      POSTGRES_DB: cashback_db
+    volumes:
+      - /home/ubuntu/kafka_spark_streaming:/kafka_spark_streaming
+    networks:
+      - network_1
+    ports:
+      - "5432:5432"
+
 
 networks:
-  kafka-network:
-
-volumes:
-  kafka_data:
+  network_1:
