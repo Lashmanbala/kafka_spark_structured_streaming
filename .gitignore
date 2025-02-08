@@ -1,1 +1,3 @@
-stream_venv/
+streaming_venv/
+parquet_output/
+kafka_checkpoints/
