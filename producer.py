@@ -31,7 +31,7 @@ def main():
             with app.get_producer() as producer:
                 logging.info(f'got record for trans_{transaction_counter}')
 
-                producer.produce(topic='test-topic', value=json.dumps(event))
+                producer.produce(topic='cashback_topic', value=json.dumps(event))
 
                 logging.info('Produced the record into kafka...sleeping...')
 
