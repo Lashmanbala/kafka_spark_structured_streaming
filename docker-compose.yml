@@ -9,9 +9,9 @@ services:
       - KAFKA_CFG_PROCESS_ROLES=broker,controller # Both the broker and controller in the same instance
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://ec2-44-201-221-169.compute-1.amazonaws.com:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://ec2-52-90-221-22.compute-1.amazonaws.com:9092 # update the host address
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@ec2-44-201-221-169.compute-1.amazonaws.com:9093
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@ec2-52-90-221-22.compute-1.amazonaws.com:9093 # update the host address
       - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
       - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
@@ -24,19 +24,7 @@ services:
     networks:
       - network_1
 
-  spark:
-    build:
-      context: ./
-      dockerfile: Dockerfile
-    image: spark:latest
-    container_name: spark
-    ports:
-      - '4040:4040'
-    networks:
-      - network_1
-    volumes:
-      - /home/ubuntu/kafka_spark_streaming:/opt/spark/work-dir
-      
+        
   postgres_db:
     image: postgres:latest
     container_name: postgres_db
