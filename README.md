@@ -25,6 +25,8 @@ To setup this project locally, follow these steps
 
 1. **Clone This Repositories:**
   ```bash
+  mkdir kafka_spark_streaming
+  cd kafka_spark_streaming
   git clone https://github.com/Lashmanbala/kafka_spark_streaming
   ```
 
