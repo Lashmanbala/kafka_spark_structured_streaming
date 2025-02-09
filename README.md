@@ -2,7 +2,7 @@
 
 ## Overview
 
-The requirement is to give cashback of specific percentile to the customer when the customer makes a payment more then certain amount and to specific merchants.
+The requirement is to give cashback of specific percentile to the customer when the customer makes a payment more than certain amount and to specific merchants.
 
 The cashback should be given in realtime. So, I used kafka and spark structured streaming in this project.
 
@@ -17,6 +17,8 @@ And the eligible customer with the cashback details is sent to another kafka top
 Incase of malformed incoming data, the error data will be stored in postgres db table for further processing.
 
 Incase of any exceptional scenario such as unavailability of database, the unprocessed data will be saved as a parquet file in a directory for reprocessing. 
+
+Postgres runs in a container and the tables'll be created while initializing the container with init.sql file in init_scripts directory.
 
 ## Setup
 To setup this project locally, follow these steps
@@ -35,3 +37,48 @@ To setup this project locally, follow these steps
     docker compose up
    ```
    Wait untill all the docker containers started and all the services are up
+   
+5. **Initialize kafka:**
+   
+   Get into the kafka container
+   ```bash
+    docker exec -it broker bash
+    cd /opt/bitnami/kafka/bin
+   ```
+   Create kafka topics
+   ```bash
+    ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic cashback_topic  
+    ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic eligible_customers_topic
+    ```
+   Subscribe to the output topic
+    ```bash
+    ./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic eligible_customers_topic --from-beginning
+    ```
+6. **Publish to kafka topic:**
+
+   Run the producer script to publish data to kafka
+   ```bash
+   python3 producer.py
+   ```
+8. **Initalize Spark:**
+   
+   Get into Spark container
+   ```bash
+    docker run -it --user root -p 4040:4040 --network kafka_spark_streaming_network_1 -v /home/ubuntu/kafka_spark_streaming:/opt/spark/work-dir spark /bin/bash
+   ```
+
+   Submit spark structured streaming application
+   ```bash
+    spark-submit --master local[*] \
+    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,org.postgresql:postgresql:42.5.0 \
+    /opt/spark/work-dir/streaming.py
+   ```
+
+10. **Check eligible_customers_topic in kafka and check eligible_customers table in postgres**
+
+## Contact
+For any questions, issues, or suggestions, please feel free to contact the project maintainer:
+
+GitHub: [Lashmanbala](https://github.com/Lashmanbala)
+
+LinkedIn: [Lashmanbala](https://www.linkedin.com/in/lashmanbala/)
