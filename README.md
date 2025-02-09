@@ -56,6 +56,10 @@ To setup this project locally, follow these steps
     ```
 6. **Publish to kafka topic:**
 
+   Create a virtual environment and install required kafka libraries
+   ```bash
+    pip install -r requirements.txt
+   ```
    Run the producer script to publish data to kafka
    ```bash
    python3 producer.py
