@@ -25,6 +25,8 @@ To setup this project locally, follow these steps
 
 1. **Clone This Repositories:**
   ```bash
+  mkdir kafka_spark_streaming
+  cd kafka_spark_streaming
   git clone https://github.com/Lashmanbala/kafka_spark_streaming
   ```
 
@@ -56,6 +58,10 @@ To setup this project locally, follow these steps
     ```
 6. **Publish to kafka topic:**
 
+   Create a virtual environment and install required kafka libraries in local
+   ```bash
+    pip install -r requirements.txt
+   ```
    Run the producer script to publish data to kafka
    ```bash
    python3 producer.py
