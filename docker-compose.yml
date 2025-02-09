@@ -41,6 +41,15 @@ services:
     ports:
       - "5432:5432"
 
+  spark:    # Just building custom spark image with pyspark installed.
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: spark
+    ports:
+      - '4040:4040'
+    networks:
+      - network_1
 
 networks:
   network_1:
