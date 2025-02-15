@@ -1,4 +1,4 @@
-# Cashback Streaming Project
+# Cashback Streaming Project - Kafka and Spark streaming
 
 ## Overview
 
