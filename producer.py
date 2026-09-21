@@ -10,16 +10,20 @@ log = logging.getLogger("producer")
 customer_id = [f"cust_{i}" for i in range(1, 6)]      
 merchant_id = [f"merch_{i}" for i in range(1, 4)]
 product_id = [f"prod_{i}" for i in range(1, 8)] 
+payment_methods = ["card", "upi", "wallet"]
 
-LATE_EVERY = 15    # Means broken customer_id or timestamp
+LATE_EVERY = 15    # Every 15th evnt is a late event
 LATE_MINUTES = 10  # How far in the past a late event is
+V2_SCHEMA_EVERY = 2 # event carries the newer optional field
 
 def every(n, counter):
     if n > 0 and counter % n == 0:
         return True
 
 def build_transaction(counter):
-    if every(LATE_EVERY, counter):
+    event_time = datetime.now()
+
+    if every(LATE_EVERY, counter):  # Late event: happened LATE_MINUTES ago but is sent now.
         log.warning(f"trans_{counter} is a LATE event ({LATE_MINUTES} min old)")
         event_time -= timedelta(minutes=LATE_MINUTES)
 
@@ -31,6 +35,11 @@ def build_transaction(counter):
         "amount": random.randint(100, 1000),
         "merchant_id": random.choice(merchant_id),
     }
+
+    # Schema evolution: newer producers add an optional field, older ones don't.
+    # Consumers must cope with both shapes.
+    if every(V2_SCHEMA_EVERY, counter):
+        event["payment_method"] = random.choice(payment_methods)
 
 def main():
     transaction_counter = 1
