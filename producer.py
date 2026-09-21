@@ -15,6 +15,7 @@ payment_methods = ["card", "upi", "wallet"]
 LATE_EVERY = 15    # Every 15th evnt is a late event
 LATE_MINUTES = 10  # How far in the past a late event is
 V2_SCHEMA_EVERY = 2 # event carries the newer optional field
+MALFORMED_EVERY = 30 # broken customer_id / timestamp
 
 def every(n, counter):
     if n > 0 and counter % n == 0:
@@ -40,6 +41,19 @@ def build_transaction(counter):
     # Consumers must cope with both shapes.
     if every(V2_SCHEMA_EVERY, counter):
         event["payment_method"] = random.choice(payment_methods)
+
+    # Alternates between breaking customer_id and breaking timestamp on 30, 60, 90,....
+    # trans 30 breaks 30 breaks and trans 60 breaks timestamp.
+    if every(MALFORMED_EVERY, counter):
+        if (counter // MALFORMED_EVERY) % 2 == 1:
+            broken_field = "customer_id"
+        else:
+            broken_field = "timestamp"
+        
+        log.warning(f"trans_{counter} is MALFORMED ({broken_field} = null)")
+        event[broken_field] = None
+    
+    return event
 
 def main():
     transaction_counter = 1
