@@ -1,6 +1,8 @@
-# Cashback Streaming Project
+# Cashback Streaming Project - Kafka and Spark Structured Streaming
 
 ## Overview
+
+![Alt text](architecture_5.png)
 
 The requirement is to give cashback of specific percentile to the customer when the customer makes a payment more than certain amount and to specific merchants.
 
