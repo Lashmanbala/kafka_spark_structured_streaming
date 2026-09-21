@@ -21,7 +21,7 @@ def every(n, counter):
     if n > 0 and counter % n == 0:
         return True
 
-def build_transaction(counter):
+def build_transaction(counter ):
     event_time = datetime.now()
 
     if every(LATE_EVERY, counter):  # Late event: happened LATE_MINUTES ago but is sent now.
@@ -56,7 +56,6 @@ def build_transaction(counter):
     return event
 
 def main():
-    transaction_counter = 1
 
     app = Application(
         broker_address='localhost:9092',
@@ -67,28 +66,30 @@ def main():
         },
     )
 
-    try:
-        while True:
-            event = {'transaction_id':f'trans_{transaction_counter}',
-                    'customer_id' : random.choice(customer_id),
-                    'timestamp' : datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-                    'product_id' : random.choice(product_id),
-                    'amount' : random.randint(100, 1000),
-                    'merchant_id' : random.choice(merchant_id)
-                    }
-        
-            with app.get_producer() as producer:
-                logging.info(f'got record for trans_{transaction_counter}')
+    transaction_counter = 1
 
-                producer.produce(topic='cashback_topic', value=json.dumps(event))
+    with app.get_producer() as producer:
+        try:
+            while True:
+                txn = build_transaction(transaction_counter)
+                payload = json.dumps(txn)   
 
-                logging.info('Produced the record into kafka...sleeping...')
+                if txn["customer_id"]:
+                    key = txn["customer_id"]    # so all events for a customer land in the same partition and stay in order.
+                else:
+                    key = "unknown"   # Malformed events may have no customer_id, so fall back to a fixed key.
 
-            transaction_counter += 1
-            time.sleep(30)
-            
-    except KeyboardInterrupt:
-        print('Stopped by User...')
+                
+                producer.produce(
+                    topic='cashback_topic', 
+                    key=key,
+                    value=payload)
+
+                transaction_counter += 1
+                time.sleep(30)
+                
+        except KeyboardInterrupt:
+            print('Stopped by User...')
 
 if __name__ == '__main__':
     logging.basicConfig(level="DEBUG")
