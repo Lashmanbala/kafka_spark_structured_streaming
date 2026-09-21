@@ -91,7 +91,7 @@ def write_to_sinks(kafka_df, batch_id):    # these args'll be internally passed 
             .option("topic", "eligible_customers_topic") \
             .mode("append") \
             .save()
-
+j
     except Exception as e:
         # incase of exceptional scenario such as disconnection  with databse the unprocessed data is saved as a parquet file
         print(e)
