@@ -60,7 +60,11 @@ def main():
 
     app = Application(
         broker_address='localhost:9092',
-        loglevel='DEBUG',
+        loglevel='INFO',
+        producer_extra_config={
+            "acks": "all",
+            "enable.idempotence": True,
+        },
     )
 
     try:
