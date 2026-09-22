@@ -17,6 +17,8 @@ LATE_MINUTES = 10  # How far in the past a late event is
 V2_SCHEMA_EVERY = 2 # event carries the newer optional field
 MALFORMED_EVERY = 30 # broken customer_id / timestamp
 
+TRANSACTIONS_TOPIC = "cashback_topic"
+
 def every(n, counter):
     if n > 0 and counter % n == 0:
         return True
@@ -43,7 +45,7 @@ def build_transaction(counter ):
         event["payment_method"] = random.choice(payment_methods)
 
     # Alternates between breaking customer_id and breaking timestamp on 30, 60, 90,....
-    # trans 30 breaks 30 breaks and trans 60 breaks timestamp.
+    # trans 30 breaks customer_id and trans 60 breaks timestamp alternatively and so on.
     if every(MALFORMED_EVERY, counter):
         if (counter // MALFORMED_EVERY) % 2 == 1:
             broken_field = "customer_id"
@@ -54,6 +56,15 @@ def build_transaction(counter ):
         event[broken_field] = None
     
     return event
+
+def make_on_delivery(label):
+    def callback(err, msg):
+        """Called by the Kafka client once the broker acks (or rejects) a record."""
+        if err is not None:
+            log.error("%s delivery FAILED for key=%s: %s", label, msg.key(), err)
+            return
+        log.info("%s delivered -> %s [partition %d] @ offset %d", label, msg.topic(), msg.partition(), msg.offset())
+    return callback
 
 def main():
 
@@ -83,7 +94,9 @@ def main():
                 producer.produce(
                     topic='cashback_topic', 
                     key=key,
-                    value=payload)
+                    value=payload,
+                    on_delivery=make_on_delivery(TRANSACTIONS_TOPIC),
+                    )
 
                 transaction_counter += 1
                 time.sleep(30)
