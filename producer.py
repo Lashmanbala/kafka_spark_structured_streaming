@@ -16,6 +16,7 @@ LATE_EVERY = 15    # Every 15th evnt is a late event
 LATE_MINUTES = 10  # How far in the past a late event is
 V2_SCHEMA_EVERY = 2 # event carries the newer optional field
 MALFORMED_EVERY = 30 # broken customer_id / timestamp
+DUPLICATE_EVERY = 20 # same event sent twice
 
 TRANSACTIONS_TOPIC = "cashback_topic"
 
@@ -89,13 +90,23 @@ def main():
                     key = txn["customer_id"]    # so all events for a customer land in the same partition and stay in order.
                 else:
                     key = "unknown"   # Malformed events may have no customer_id, so fall back to a fixed key.
-
                 
                 producer.produce(
                     topic='cashback_topic', 
                     key=key,
                     value=payload,
                     on_delivery=make_on_delivery(TRANSACTIONS_TOPIC),
+                    )
+
+                # Duplicate: resend the exact same event (same transaction_id).
+                # Downstream should dedupe with dropDuplicates.
+                if every(DUPLICATE_EVERY, transaction_counter):
+                    log.warning("Re-sending duplicate of %s", txn["transaction_id"])
+                    producer.produce(
+                        topic=TRANSACTIONS_TOPIC,
+                        key=key,
+                        value=payload,
+                        on_delivery=make_on_delivery(TRANSACTIONS_TOPIC),
                     )
 
                 transaction_counter += 1
