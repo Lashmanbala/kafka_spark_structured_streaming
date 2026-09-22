@@ -3,6 +3,7 @@ import random
 import json
 from quixstreams import Application
 from datetime import datetime, timedelta
+from collections import deque
 import logging
 
 log = logging.getLogger("producer")
@@ -12,13 +13,15 @@ merchant_id = [f"merch_{i}" for i in range(1, 4)]
 product_id = [f"prod_{i}" for i in range(1, 8)] 
 payment_methods = ["card", "upi", "wallet"]
 
-LATE_EVERY = 15    # Every 15th evnt is a late event
-LATE_MINUTES = 10  # How far in the past a late event is
-V2_SCHEMA_EVERY = 2 # event carries the newer optional field
+LATE_EVERY = 15      # Every 15th evnt is a late event
+LATE_MINUTES = 10    # How far in the past a late event is
+V2_SCHEMA_EVERY = 2  # event carries the newer optional field
 MALFORMED_EVERY = 30 # broken customer_id / timestamp
 DUPLICATE_EVERY = 20 # same event sent twice
+REFUND_EVERY = 10    # refund for an earlier transaction
 
 TRANSACTIONS_TOPIC = "cashback_topic"
+REFUNDS_TOPIC = "refunds_topic"
 
 def every(n, counter):
     if n > 0 and counter % n == 0:
@@ -58,6 +61,15 @@ def build_transaction(counter ):
     
     return event
 
+def build_refund(txn):
+    return {
+        "refund_id": f"refund_{txn['transaction_id']}",
+        "transaction_id": txn["transaction_id"],
+        "customer_id": txn["customer_id"],
+        "refund_amount": txn["amount"],
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
 def make_on_delivery(label):
     def callback(err, msg):
         """Called by the Kafka client once the broker acks (or rejects) a record."""
@@ -79,6 +91,7 @@ def main():
     )
 
     transaction_counter = 1
+    recent_transactions = deque(maxlen=5)  # candidates for refunds (oldest first)
 
     with app.get_producer() as producer:
         try:
@@ -92,7 +105,7 @@ def main():
                     key = "unknown"   # Malformed events may have no customer_id, so fall back to a fixed key.
                 
                 producer.produce(
-                    topic='cashback_topic', 
+                    topic=TRANSACTIONS_TOPIC, 
                     key=key,
                     value=payload,
                     on_delivery=make_on_delivery(TRANSACTIONS_TOPIC),
@@ -108,13 +121,31 @@ def main():
                         value=payload,
                         on_delivery=make_on_delivery(TRANSACTIONS_TOPIC),
                     )
+                
+                # Refund: refund the oldest of the last 5 well-formed transactions
+                if every(REFUND_EVERY, transaction_counter) and recent_transactions:
+                    original = recent_transactions[0]
+                    refund = build_refund(original)
+                    producer.produce(
+                        topic=REFUNDS_TOPIC,
+                        key=refund["customer_id"],
+                        value=json.dumps(refund),
+                        on_delivery=make_on_delivery(REFUNDS_TOPIC),
+                    )
+                    log.info("Produced refund for %s", original["transaction_id"])
+
+                # Only well-formed transactions can be refunded.
+                if txn["customer_id"] and txn["timestamp"]:
+                    recent_transactions.append(txn)
 
                 transaction_counter += 1
-                time.sleep(30)
+                time.sleep(5)
                 
         except KeyboardInterrupt:
-            print('Stopped by User...')
+          log.info("Stopped by user, flushing...")
+          
+        # leaving the `with` block flushes pending messages
 
 if __name__ == '__main__':
-    logging.basicConfig(level="DEBUG")
+    logging.basicConfig(level="INFO")
     main()
