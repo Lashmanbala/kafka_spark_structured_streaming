@@ -2,7 +2,7 @@ import time
 import random
 import json
 from quixstreams import Application
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import deque
 import logging
 
@@ -20,15 +20,19 @@ MALFORMED_EVERY = 30 # broken customer_id / timestamp
 DUPLICATE_EVERY = 20 # same event sent twice
 REFUND_EVERY = 10    # refund for an earlier transaction
 
+BROKER = 'localhost:9092'
 TRANSACTIONS_TOPIC = "cashback_topic"
 REFUNDS_TOPIC = "refunds_topic"
+INTERVAL_SEC = 5
 
 def every(n, counter):
     if n > 0 and counter % n == 0:
         return True
+    else:
+        False
 
 def build_transaction(counter ):
-    event_time = datetime.now()
+    event_time = datetime.now(timezone.utc)  # universal time irrespective of the broker's location
 
     if every(LATE_EVERY, counter):  # Late event: happened LATE_MINUTES ago but is sent now.
         log.warning(f"trans_{counter} is a LATE event ({LATE_MINUTES} min old)")
@@ -62,12 +66,14 @@ def build_transaction(counter ):
     return event
 
 def build_refund(txn):
+    event_time = datetime.now(timezone.utc)
+    
     return {
         "refund_id": f"refund_{txn['transaction_id']}",
         "transaction_id": txn["transaction_id"],
         "customer_id": txn["customer_id"],
         "refund_amount": txn["amount"],
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": event_time.strftime("%Y-%m-%d %H:%M:%S"),
     }
 
 def make_on_delivery(label):
@@ -79,10 +85,11 @@ def make_on_delivery(label):
         log.info("%s delivered -> %s [partition %d] @ offset %d", label, msg.topic(), msg.partition(), msg.offset())
     return callback
 
+
 def main():
 
     app = Application(
-        broker_address='localhost:9092',
+        broker_address=BROKER,
         loglevel='INFO',
         producer_extra_config={
             "acks": "all",
@@ -139,11 +146,11 @@ def main():
                     recent_transactions.append(txn)
 
                 transaction_counter += 1
-                time.sleep(5)
+                time.sleep(INTERVAL_SEC)
                 
         except KeyboardInterrupt:
           log.info("Stopped by user, flushing...")
-          
+
         # leaving the `with` block flushes pending messages
 
 if __name__ == '__main__':
