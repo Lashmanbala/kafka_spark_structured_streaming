@@ -2,7 +2,6 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json, round, to_json, struct, lit, current_timestamp
 from pyspark.sql.types import *
 
-# Initialize SparkSession
 spark = SparkSession.builder \
     .appName("TestKafka") \
     .config("spark.sql.shuffle.partitions", 8) \
@@ -11,7 +10,6 @@ spark = SparkSession.builder \
     .config("spark.jars.packages", "org.postgresql:postgresql:42.5.0") \
     .getOrCreate()
 
-# Read data from Kafka (update with your Kafka settings)
 # in bootstrap server option, broker is the container name in which kafka is running
 kafka_df = spark \
     .readStream \
@@ -26,14 +24,14 @@ def check_df(df):
     # converting value column from binary to string
     value_df = df.selectExpr("CAST(value AS STRING)")
 
-    ## Input Schema
     df_schema = StructType([
         StructField("transaction_id", StringType(), True),
         StructField("customer_id", StringType(), True),
         StructField("timestamp", TimestampType(), True),
         StructField("product_id", StringType(), True),
         StructField("amount", IntegerType(), True),
-        StructField("merchant_id", StringType(), True)
+        StructField("merchant_id", StringType(), True),
+        StructField("payment_method", StringType(), True)
     ])
 
     # expanding the value column as per the schema using from_json method
@@ -91,7 +89,7 @@ def write_to_sinks(kafka_df, batch_id):    # these args'll be internally passed 
             .option("topic", "eligible_customers_topic") \
             .mode("append") \
             .save()
-j
+
     except Exception as e:
         # incase of exceptional scenario such as disconnection  with databse the unprocessed data is saved as a parquet file
         print(e)
