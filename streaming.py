@@ -38,6 +38,8 @@ parsed_df = json_df.select("value", "value_json.*")
 
 watermarked_df = parsed_df.withWatermark("timestamp", "15 minutes")
 
+deduped_df = watermarked_df.dropDuplicates(["transaction_id"])   # the producer resends the exact same event (same transaction_id) every DUPLICATE_EVERY transactions
+
 def check_df(df):
     # Filtering error dataframe
     error_df = df.select("value").withColumn('event_timestamp', lit(current_timestamp())) \
