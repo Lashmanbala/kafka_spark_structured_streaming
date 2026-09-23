@@ -20,11 +20,7 @@ kafka_df = spark \
     .option("failOnDataLoss", "false") \
     .load()
 
-def check_df(df):
-    # converting value column from binary to string
-    value_df = df.selectExpr("CAST(value AS STRING)")
-
-    df_schema = StructType([
+df_schema = StructType([
         StructField("transaction_id", StringType(), True),
         StructField("customer_id", StringType(), True),
         StructField("timestamp", TimestampType(), True),
@@ -34,22 +30,27 @@ def check_df(df):
         StructField("payment_method", StringType(), True)
     ])
 
-    # expanding the value column as per the schema using from_json method
-    json_df = value_df.withColumn('value_json', from_json(col('value'), df_schema)) 
+value_df = kafka_df.selectExpr("CAST(value AS STRING)")   # converting value column from binary to string
 
+json_df = value_df.withColumn('value_json', from_json(col('value'), df_schema)) 
+
+parsed_df = json_df.select("value", "value_json.*")
+
+watermarked_df = parsed_df.withWatermark("timestamp", "15 minutes")
+
+def check_df(df):
     # Filtering error dataframe
-    error_df = json_df.select("value").withColumn('event_timestamp', lit(current_timestamp())) \
-                  .where(col("value_json.customer_id").isNull() | col("value_json.timestamp").isNull())
-
+    error_df = df.select("value").withColumn('event_timestamp', lit(current_timestamp())) \
+                  .where(col("customer_id").isNull() | col("timestamp").isNull())
     
     # Filtering correct dataframe
-    valid_df = json_df.where(col("value_json.customer_id").isNotNull() & col("value_json.timestamp").isNotNull()) \
-                      .selectExpr('value_json.*')
+    valid_df = df.where(col(".customer_id").isNotNull() & col("timestamp").isNotNull()) \
+                    .drop("value") # droping the vraw value string in the df
 
-    # getting the eligible customers who have paid more than 500 rs to either merch_1 or merch_2 and calculating the cashback 15%
+    # getting the eligible customers who have paid more than 500 rs to either merch_1 or merch_3 and calculating the cashback 15%
     eligible_df = valid_df.filter((col('amount') > 500) & (col('merchant_id').isin('merch_1', 'merch_3'))) \
                         .withColumn('cashback', round(col('amount').cast('double') * 0.15, 2)) \
-                        .select(col("customer_id"),col("amount"),col("cashback"),col("merchant_id"),col("timestamp"))
+                        .select(col("customer_id"),col("amount"),col("cashback"),col("merchant_id"),col("timestamp"),col("payment_method"))
     
     return error_df, eligible_df
 
