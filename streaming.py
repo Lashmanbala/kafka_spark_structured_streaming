@@ -135,4 +135,29 @@ window_query = merchant_window_df.writeStream \
     .option("checkpointLocation", "./window_checkpoints") \
     .start()
 
+# Processing refunds
+refund_schema = StructType([
+    StructField("refund_id", StringType(), True),
+    StructField("transaction_id", StringType(), True),
+    StructField("customer_id", StringType(), True),
+    StructField("refund_amount", IntegerType(), True),
+    StructField("timestamp", TimestampType(), True),
+])
+ 
+refunds_kafka_df = spark \
+    .readStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", "broker:9092") \
+    .option("subscribe", "refunds_topic") \
+    .option("startingOffsets", "earliest") \
+    .option("failOnDataLoss", "false") \
+    .load()
+ 
+refunds_parsed_df = refunds_kafka_df.selectExpr("CAST(value AS STRING) as value") \
+    .withColumn("value_json", from_json(col("value"), refund_schema)) \
+    .select("value_json.*")
+ 
+refunds_watermarked_df = refunds_parsed_df.withWatermark("timestamp", "15 minutes")
+
+
 spark.streams.awaitAnyTermination()   # since we have multiple streaming queries
