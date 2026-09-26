@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, round, to_json, struct, lit, current_timestamp
+from pyspark.sql.functions import col, from_json, round, to_json, struct, lit, current_timestamp, window, sum, count
 from pyspark.sql.types import *
 
 spark = SparkSession.builder \
@@ -103,11 +103,36 @@ def write_to_sinks(kafka_df, batch_id):    # these args'll be internally passed 
                 .save()
 
 
-query = kafka_df.writeStream \
+query = deduped_df.writeStream \
     .outputMode("append") \
     .foreachBatch(write_to_sinks) \
     .option("checkpointLocation", "./kafka_checkpoints") \
     .start()
 
-query.awaitTermination()
+# Aggregation 
+merchant_window_df = deduped_df \
+    .where(col("customer_id").isNotNull() & col("timestamp").isNotNull()) \
+    .groupBy(
+        window(col("timestamp"), "5 minutes"),
+        col("merchant_id")
+        ) \
+    .agg(
+        sum("amount").alias("total_amount"),
+        count("*").alias("txn_count")
+        ) \
+    .select(
+        col("window.start").alias("window_start"),
+        col("window.end").alias("window_end"),
+        col("merchant_id"),
+        col("total_amount"),
+        col("txn_count")
+        )
 
+window_query = merchant_window_df.writeStream \
+    .outputMode("update") \
+    .format("console") \
+    .option("truncate", "false") \
+    .option("checkpointLocation", "./window_checkpoints") \
+    .start()
+
+spark.streams.awaitAnyTermination()   # since we have multiple streaming queries
