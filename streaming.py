@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, round, to_json, struct, lit, current_timestamp, window, sum, count
+from pyspark.sql.functions import col, from_json, round, to_json, struct, lit, current_timestamp, window, sum, count, when
 from pyspark.sql.types import *
 
 spark = SparkSession.builder \
@@ -159,5 +159,43 @@ refunds_parsed_df = refunds_kafka_df.selectExpr("CAST(value AS STRING) as value"
  
 refunds_watermarked_df = refunds_parsed_df.withWatermark("timestamp", "15 minutes")
 
+# Recompute the eligible-transaction shape as a streaming transformation
+eligible_txn_df = deduped_df \
+    .where(col("customer_id").isNotNull() & col("timestamp").isNotNull()) \
+    .filter((col("amount") > 500) & (col("merchant_id").isin("merch_1", "merch_3"))) \
+    .withColumn("cashback", round(col("amount").cast("double") * 0.15, 2)) \
+    .withColumnRenamed("timestamp", "txn_timestamp")  
+
+
+# Join condition includes a time-range constraint (refund must land within 30 minutes after its transaction).
+refunded_df = eligible_txn_df.alias("t").join(
+    refunds_watermarked_df.alias("r"),
+    expr("""
+        t.transaction_id = r.transaction_id AND
+        r.timestamp >= t.txn_timestamp AND
+        r.timestamp <= t.txn_timestamp + interval 30 minutes
+    """),
+    "leftOuter"   # keep every eligible transaction, matched refund or not
+).select(
+    col("t.transaction_id"),
+    col("t.customer_id"),
+    col("t.merchant_id"),
+    col("t.amount"),
+    col("t.cashback"),
+    col("t.txn_timestamp"),
+    col("r.refund_id"),
+    col("r.timestamp").alias("refund_timestamp")
+).withColumn(
+    "cashback_status",
+    when(col("refund_id").isNotNull(), lit("REVERSED")).otherwise(lit("CONFIRMED"))
+)
+
+
+refund_join_query = refunded_df.writeStream \
+    .outputMode("append") \
+    .format("console") \
+    .option("truncate", "false") \
+    .option("checkpointLocation", "./refund_join_checkpoints") \
+    .start()
 
 spark.streams.awaitAnyTermination()   # since we have multiple streaming queries
