@@ -73,6 +73,7 @@ def postgres(df, table_name):
         .save()
 
 def write_to_sinks(kafka_df, batch_id):    # these args'll be internally passed by foreachBatch function
+    kafka_df.persist()   # persisting for mutiple writes
     try:
         error_df_raw, eligible_df = check_df(kafka_df)
 
@@ -104,15 +105,18 @@ def write_to_sinks(kafka_df, batch_id):    # these args'll be internally passed 
         kafka_df.write \
                 .format("parquet") \
                 .mode("append") \
-                .option("path", "./parquet_output") \
+                .option("path", "/opt/spark/data/parquet_output") \
                 .save()
+    
+    finally:
+        kafka_df.unpersist()
 
 
 query = deduped_df.writeStream \
     .outputMode("append") \
     .foreachBatch(write_to_sinks) \
     .trigger(processingTime="10 seconds") \
-    .option("checkpointLocation", "./kafka_checkpoints") \
+    .option("checkpointLocation", "/opt/spark/checkpoints/main") \
     .start()
 
 # Aggregation 
@@ -134,7 +138,7 @@ merchant_window_df = deduped_df \
         col("txn_count")
         )
 
-DELTA_WINDOW_PATH = "/opt/spark/delta/merchant_window_stats" # Local filesystem path inside the Spark container. Its mounted volume.
+DELTA_WINDOW_PATH = "/opt/spark/data/delta/merchant_window_stats" # Local filesystem path inside the Spark container. Its mounted volume.
 
 def upsert_window_batch(batch_df, batch_id):
     batch_df = batch_df.withColumn("batch_id", lit(batch_id))
@@ -161,7 +165,7 @@ window_query = merchant_window_df.writeStream \
     .outputMode("update") \
     .foreachBatch(upsert_window_batch) \
     .trigger(processingTime="30 seconds") \
-    .option("checkpointLocation", "./window_checkpoints") \
+    .option("checkpointLocation", "/opt/spark/checkpoints/window") \
     .start()
 
 # Processing refunds
@@ -224,7 +228,7 @@ refund_join_query = refunded_df.writeStream \
     .outputMode("append") \
     .format("console") \
     .option("truncate", "false") \
-    .option("checkpointLocation", "./refund_join_checkpoints") \
+    .option("checkpointLocation", "/opt/spark/checkpoints/refund_join") \
     .start()
 
 spark.streams.awaitAnyTermination()   # since we have multiple streaming queries
