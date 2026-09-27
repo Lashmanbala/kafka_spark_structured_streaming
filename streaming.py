@@ -1,13 +1,18 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, round, to_json, struct, lit, current_timestamp, window, sum, count, when
+from pyspark.sql.functions import col, from_json, round, to_json, struct, lit, current_timestamp, window, sum, count, when, expr
 from pyspark.sql.types import *
+from delta.tables import DeltaTable
 
 spark = SparkSession.builder \
     .appName("TestKafka") \
     .config("spark.sql.shuffle.partitions", 8) \
     .config("spark.streaming.stopGracefullyOnShutdown", "true") \
-    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0") \
-    .config("spark.jars.packages", "org.postgresql:postgresql:42.5.0") \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,"
+                                   "org.postgresql:postgresql:42.5.0,"
+                                   "io.delta:delta-core_2.12:2.4.0"
+    ) \
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
     .getOrCreate()
 
 # in bootstrap server option, broker is the container name in which kafka is running
@@ -106,6 +111,7 @@ def write_to_sinks(kafka_df, batch_id):    # these args'll be internally passed 
 query = deduped_df.writeStream \
     .outputMode("append") \
     .foreachBatch(write_to_sinks) \
+    .trigger(processingTime="10 seconds") \
     .option("checkpointLocation", "./kafka_checkpoints") \
     .start()
 
@@ -128,10 +134,33 @@ merchant_window_df = deduped_df \
         col("txn_count")
         )
 
+DELTA_WINDOW_PATH = "/opt/spark/delta/merchant_window_stats" # Local filesystem path inside the Spark container. Its mounted volume.
+
+def upsert_window_batch(batch_df, batch_id):
+    batch_df = batch_df.withColumn("batch_id", lit(batch_id))
+ 
+    # update-mode batches with no changed windows are common, so skip the merge entirely rather than opening a Delta transaction for nothing.
+    if batch_df.rdd.isEmpty():
+        return
+ 
+    if DeltaTable.isDeltaTable(spark, DELTA_WINDOW_PATH):
+
+        delta_table = DeltaTable.forPath(spark, DELTA_WINDOW_PATH)
+        delta_table.alias("t").merge(
+            batch_df.alias("s"),
+            "t.window_start = s.window_start AND t.merchant_id = s.merchant_id"
+        ).whenMatchedUpdateAll() \
+         .whenNotMatchedInsertAll() \
+         .execute()
+    else:
+        # First batch ever: there's no Delta table so create it with a plain write.
+        batch_df.write.format("delta").mode("overwrite").save(DELTA_WINDOW_PATH)
+ 
+
 window_query = merchant_window_df.writeStream \
     .outputMode("update") \
-    .format("console") \
-    .option("truncate", "false") \
+    .foreachBatch(upsert_window_batch) \
+    .trigger(processingTime="30 seconds") \
     .option("checkpointLocation", "./window_checkpoints") \
     .start()
 
