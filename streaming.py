@@ -90,7 +90,7 @@ def write_to_sinks(kafka_df, batch_id):    # these args'll be internally passed 
 
         # Kafka takes only string. And the clm name should be value
         # converting the df into json string with clm name as 'value'
-        output_df = eligible_df.select(to_json(struct(*eligible_df.columns)).alias("value"))
+        output_df = eligible_df.select(col("customer_id").alias("key"), to_json(struct(*eligible_df.columns)).alias("value"))
 
         output_df.write \
             .format("kafka") \
