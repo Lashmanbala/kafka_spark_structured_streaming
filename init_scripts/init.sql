@@ -17,3 +17,4 @@ CREATE TABLE IF NOT EXISTS error_table (
 );
 
 
+CREATE INDEX IF NOT EXISTS idx_customer_id ON eligible_customers(customer_id)
