@@ -48,6 +48,9 @@ services:
     container_name: spark
     ports:
       - '4040:4040'
+    volumes:
+      - /home/ubuntu/kafka_spark_streaming/spark_checkpoints:/opt/spark/checkpoints
+      - /home/ubuntu/kafka_spark_streaming/spark_data:/opt/spark/data
     networks:
       - network_1
 
