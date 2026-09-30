@@ -1,13 +1,19 @@
-CREATE TABLE eligible_customers (
-    customer_id VARCHAR(50),
-    amount DOUBLE PRECISION,
-    cashback DOUBLE PRECISION,
-    merchant_id VARCHAR(50),
-    timestamp TIMESTAMP
+CREATE TABLE IF NOT EXISTS eligible_customers (
+    id SERIAL PRIMARY KEY,
+    customer_id VARCHAR(50) NOT NULL,
+    amount INTEGER NOT NULL,
+    cashback NUMERIC(10, 2) NOT NULL,
+    merchant_id VARCHAR(50) NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    payment_method VARCHAR(20),
+    batch_id BIGINT
 );
 
-CREATE TABLE error_table(
-    value VARCHAR(50),
+CREATE TABLE IF NOT EXISTS error_table (
+    id SERIAL PRIMARY KEY,
+    value TEXT,
     event_timestamp TIMESTAMP,
-    batch_id INT
+    batch_id BIGINT
 );
+
+
