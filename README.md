@@ -2,7 +2,7 @@
 
 ## Overview
 
-![Alt text](architecture_5.png)
+![Alt text](Streaming_project_architecture.png)
 
 A streaming pipeline that simulates purchase transactions, evaluates them for cashback eligibility in real time, and demonstrates a broad set of Kafka and Spark Structured Streaming features end to end: keyed partitioning, exactly-once-ish producer delivery, schema evolution, watermarking, deduplication, windowed aggregation, stream-stream joins, a Delta Lake upsert sink, and multiple concurrent streaming queries.
 
