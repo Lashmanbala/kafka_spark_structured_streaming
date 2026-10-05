@@ -10,7 +10,13 @@ Kafka is running in docker container with KRaft. Both controller and broker is c
 
 Spark is running in another docker container. The data is recieved from a kafka topic and being processed by spark.
 
+And the eligible customer with the cashback details is sent to another kafka topic to give the cashback and also to a postgres db table to keep the record and malformed incoming data i.e the error data will be stored in postgres db table for further processing without sending to the downstream.
 
+Incase of any exceptional scenario such as unavailability of database, the unprocessed data will be saved as a parquet file in a directory for reprocessing. 
+
+Postgres runs in a container and the tables'll be created while initializing the container with init.sql file in init_scripts directory.
+
+And a real time analysis query computes merchant stats and stores it in delta table.
 ---
  
 ## Project structure
@@ -24,16 +30,6 @@ Spark is running in another docker container. The data is recieved from a kafka 
 ├── streaming.py               # The Spark Structured Streaming pipeline
 └── requirements.txt            # Python deps for producer.py (run outside Docker)
 ```
-
-And the eligible customer with the cashback details is sent to another kafka topic to give the cashback and also to a postgres db table to keep the record.
-
-Incase of malformed incoming data, the error data will be stored in postgres db table for further processing.
-
-Incase of any exceptional scenario such as unavailability of database, the unprocessed data will be saved as a parquet file in a directory for reprocessing. 
-
-Postgres runs in a container and the tables'll be created while initializing the container with init.sql file in init_scripts directory.
-
----
  
 ## What this project demonstrates
  
@@ -56,75 +52,6 @@ Postgres runs in a container and the tables'll be created while initializing the
 - **Native Kafka sink with a key column** — the `eligible_customers_topic` output includes a `key` column, preserving the same per-customer partition ordering on the way out as on the way in.
 ---
 
-## Setup
-To setup this project locally, follow these steps
-
-1. **Clone This Repositories:**
-  ```bash
-  mkdir kafka_spark_streaming
-  cd kafka_spark_streaming
-  git clone https://github.com/Lashmanbala/kafka_spark_streaming
-  ```
-
-2. **Install Docker and Docker compose**
- 
-3. **Edit the docker compose file with your values of volumes and environment variables**
-
-Replace `ec2-52-90-221-22.compute-1.amazonaws.com` with your own host's public DNS (or `localhost` if running everything on one machine with no remote access needed).
-
-4. **Run docker compose file**
-   ```bash
-    docker compose up
-   ```
-   This starts three containers:
-- `broker` — Kafka (KRaft mode, broker + controller combined)
-- `postgres_db` — Postgres, running `init.sql` on first startup only
-- `spark` — builds the custom image from `Dockerfile` and runs `streaming.py`
-   
-5. **Initialize kafka:**
-   
-   Get into the kafka container
-   ```bash
-    docker exec -it broker bash
-    cd /opt/bitnami/kafka/bin
-   ```
-   Create kafka topics
-   ```bash
-    ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic cashback_topic  
-    ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic eligible_customers_topic
-    ```
-   Subscribe to the output topic
-    ```bash
-    ./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic eligible_customers_topic --from-beginning
-    ```
-6. **Publish to kafka topic:**
-
-   Create a virtual environment and install required kafka libraries in local
-   ```bash
-    pip install -r requirements.txt
-   ```
-   Run the producer script to publish data to kafka
-   ```bash
-   python3 producer.py
-   ```
-8. **Initalize Spark:**
-   
-   Get into Spark container
-   ```bash
-    docker run -it --user root -p 4040:4040 --network kafka_spark_streaming_network_1 -v /home/ubuntu/kafka_spark_streaming:/opt/spark/work-dir spark /bin/bash
-   ```
-
-   Submit spark structured streaming application
-   ```bash
-    spark-submit --master local[*] \
-    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,org.postgresql:postgresql:42.5.0 \
-    /opt/spark/work-dir/streaming.py
-   ```
-
-10. **Check eligible_customers_topic in kafka and check eligible_customers table in postgres**
-
----
- 
 ## Data flow & schemas
  
 ### Kafka topics
@@ -215,3 +142,73 @@ Unlike the two Postgres tables, this schema is **not declared anywhere** — Del
 - **`foreachBatch` + `persist()`/`unpersist()`** is used wherever a micro-batch feeds more than one downstream write (e.g., `eligible_customers` + the Kafka output topic), to avoid re-fetching the same batch from Kafka multiple times.
 - **A parquet fallback** catches write failures (e.g., Postgres unreachable) so a sink outage doesn't silently drop data — it's written to `/opt/spark/data/parquet_output/` instead.
 ---
+
+## Setup
+To setup this project locally, follow these steps
+
+1. **Clone This Repositories:**
+  ```bash
+  mkdir kafka_spark_streaming
+  cd kafka_spark_streaming
+  git clone https://github.com/Lashmanbala/kafka_spark_streaming
+  ```
+
+2. **Install Docker and Docker compose**
+ 
+3. **Edit the docker compose file with your values of volumes and environment variables**
+
+Replace `ec2-52-90-221-22.compute-1.amazonaws.com` with your own host's public DNS (or `localhost` if running everything on one machine with no remote access needed).
+
+4. **Run docker compose file**
+   ```bash
+    docker compose up
+   ```
+   This starts three containers:
+- `broker` — Kafka (KRaft mode, broker + controller combined)
+- `postgres_db` — Postgres, running `init.sql` on first startup only
+- `spark` — builds the custom image from `Dockerfile` and runs `streaming.py`
+   
+5. **Initialize kafka:**
+   
+   Get into the kafka container
+   ```bash
+    docker exec -it broker bash
+    cd /opt/bitnami/kafka/bin
+   ```
+   Create kafka topics
+   ```bash
+    ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic cashback_topic  
+    ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic eligible_customers_topic
+    ```
+   Subscribe to the output topic
+    ```bash
+    ./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic eligible_customers_topic --from-beginning
+    ```
+6. **Publish to kafka topic:**
+
+   Create a virtual environment and install required kafka libraries in local
+   ```bash
+    pip install -r requirements.txt
+   ```
+   Run the producer script to publish data to kafka
+   ```bash
+   python3 producer.py
+   ```
+8. **Initalize Spark:**
+   
+   Get into Spark container
+   ```bash
+    docker run -it --user root -p 4040:4040 --network kafka_spark_streaming_network_1 -v /home/ubuntu/kafka_spark_streaming:/opt/spark/work-dir spark /bin/bash
+   ```
+
+   Submit spark structured streaming application
+   ```bash
+    spark-submit --master local[*] \
+    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,org.postgresql:postgresql:42.5.0 \
+    /opt/spark/work-dir/streaming.py
+   ```
+
+10. **Check eligible_customers_topic in kafka and check eligible_customers table in postgres**
+
+---
+ 
