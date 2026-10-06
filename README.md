@@ -196,6 +196,7 @@ Replace `ec2-52-90-221-22.compute-1.amazonaws.com` with your own host's public D
    ```bash
     ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic cashback_topic  
     ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic eligible_customers_topic
+    ./kafka-topics.sh --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --create --topic refunds_topic
     ```
    Subscribe to the output topic
     ```bash
@@ -221,7 +222,7 @@ Replace `ec2-52-90-221-22.compute-1.amazonaws.com` with your own host's public D
    Submit spark structured streaming application
    ```bash
     spark-submit --master local[*] \
-    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,org.postgresql:postgresql:42.5.0 \
+    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,org.postgresql:postgresql:42.5.0,io.delta:delta-core_2.12:2.4.0 \
     /opt/spark/work-dir/streaming.py
    ```
 
