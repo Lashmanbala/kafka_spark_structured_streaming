@@ -17,6 +17,7 @@ Incase of any exceptional scenario such as unavailability of database, the unpro
 Postgres runs in a container and the tables'll be created while initializing the container with init.sql file in init_scripts directory.
 
 And a real time analysis query computes merchant stats and stores it in delta table.
+
 ---
  
 ## Project structure
