@@ -137,10 +137,6 @@ def write_eligible_batch(batch_df, batch_id):
 def write_error_batch(batch_df, batch_id):
     # Only one write action here, so no persist() needed 
     
-    # update-mode batches with no changed windows are common, so skip the merge entirely rather than opening a Delta transaction for nothing.
-    if batch_df.rdd.isEmpty():  
-        return
-    
     error_df = batch_df.withColumn("batch_id", lit(batch_id))
     try:
         postgres(error_df, "error_table")
