@@ -54,6 +54,22 @@ And a real time analysis query computes merchant stats and stores it in delta ta
 ---
 
 ## Data flow & schemas
+
+### Data Simulation
+
+The producer deliberately injects messy, real-world conditions on a predictable schedule, so every downstream feature has something to react to:
+ 
+| Constant | Default | What happens |
+|---|---|---|
+| `MALFORMED_EVERY` | 30 | Every 30th transaction has a null `customer_id` or `timestamp` (alternating), exercising `error_table`. |
+| `DUPLICATE_EVERY` | 20 | Every 20th transaction is sent twice with the same `transaction_id`, exercising `dropDuplicates`. |
+| `LATE_EVERY` | 15 | Every 15th transaction has a timestamp `LATE_MINUTES` in the past, exercising the watermark. |
+| `LATE_MINUTES` | 10 | How far in the past a late event's timestamp is. Kept safely inside the 15-minute watermark so late events are reliably accepted rather than sitting on the boundary. |
+| `REFUND_EVERY` | 10 | Every 10th transaction triggers a refund for an earlier transaction, exercising the stream-stream join. |
+| `V2_SCHEMA_EVERY` | 2 | Every even-numbered transaction includes `payment_method`, exercising schema evolution. |
+| `INTERVAL_SEC` | 5 | Seconds between transactions. |
+ 
+---
  
 ### Kafka topics
  
